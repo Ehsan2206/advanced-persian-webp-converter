@@ -1,0 +1,437 @@
+/* استایل اصلی پنل مدیریت Persian WebP Converter */
+.persian-webp-wrap {
+    direction: rtl;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.pwc-title {
+    color: #1e1e1e;
+    border-bottom: 3px solid #0073aa;
+    padding-bottom: 15px;
+    margin-bottom: 30px;
+    font-size: 28px;
+    font-weight: 700;
+}
+
+/* کارت‌های آمار */
+.pwc-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.pwc-stat-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    text-align: center;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.pwc-stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: rgba(255,255,255,0.3);
+}
+
+.pwc-stat-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 35px rgba(0,0,0,0.2);
+}
+
+.pwc-stat-icon {
+    font-size: 42px;
+    margin-bottom: 15px;
+    display: block;
+}
+
+.pwc-stat-content h3 {
+    margin: 0 0 10px 0;
+    font-size: 16px;
+    font-weight: 500;
+    opacity: 0.9;
+}
+
+.pwc-stat-number {
+    font-size: 32px;
+    font-weight: bold;
+    margin: 10px 0;
+}
+
+.pwc-stat-desc {
+    font-size: 13px;
+    opacity: 0.8;
+}
+
+/* تب‌ها */
+.pwc-tabs {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+.pwc-tab-nav {
+    display: flex;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e0e0e0;
+    flex-wrap: wrap;
+}
+
+.pwc-tab-button {
+    padding: 15px 25px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    border-bottom: 3px solid transparent;
+    transition: all 0.3s ease;
+    color: #666;
+}
+
+.pwc-tab-button:hover {
+    background: #fff;
+    color: #0073aa;
+}
+
+.pwc-tab-button.active {
+    background: #fff;
+    color: #0073aa;
+    border-bottom-color: #0073aa;
+}
+
+.pwc-tab-content {
+    display: none;
+    padding: 30px;
+}
+
+.pwc-tab-content.active {
+    display: block;
+    animation: fadeIn 0.5s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* فرم‌ها */
+.pwc-form-section {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border-right: 4px solid #0073aa;
+}
+
+.pwc-form-section label {
+    display: block;
+    margin-bottom: 10px;
+    font-weight: 500;
+    color: #333;
+}
+
+.pwc-switch {
+    position: relative;
+    display: inline-block;
+    width: 60px;
+    height: 34px;
+    margin-left: 15px;
+}
+
+.pwc-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.pwc-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 34px;
+}
+
+.pwc-slider:before {
+    position: absolute;
+    content: "";
+    height: 26px;
+    width: 26px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .pwc-slider {
+    background-color: #0073aa;
+}
+
+input:checked + .pwc-slider:before {
+    transform: translateX(26px);
+}
+
+.pwc-range-container {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-top: 10px;
+}
+
+.pwc-range {
+    width: 300px;
+    height: 6px;
+    border-radius: 3px;
+    background: #ddd;
+    outline: none;
+    -webkit-appearance: none;
+}
+
+.pwc-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #0073aa;
+    cursor: pointer;
+}
+
+/* پیشرفت */
+.pwc-progress-container {
+    background: #fff;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    margin: 20px 0;
+}
+
+.pwc-progress-bar {
+    width: 100%;
+    height: 25px;
+    background: #f0f0f0;
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 15px 0;
+    box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.pwc-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #0073aa, #00a0d2);
+    transition: width 0.5s ease;
+    position: relative;
+}
+
+.pwc-progress-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    background-image: linear-gradient(
+        -45deg,
+        rgba(255,255,255,0.2) 25%,
+        transparent 25%,
+        transparent 50%,
+        rgba(255,255,255,0.2) 50%,
+        rgba(255,255,255,0.2) 75%,
+        transparent 75%,
+        transparent
+    );
+    background-size: 50px 50px;
+    animation: move 2s linear infinite;
+}
+
+@keyframes move {
+    0% { background-position: 0 0; }
+    100% { background-position: 50px 50px; }
+}
+
+.pwc-progress-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+}
+
+.pwc-progress-percent {
+    font-size: 24px;
+    font-weight: bold;
+    color: #0073aa;
+}
+
+.pwc-progress-text {
+    color: #666;
+    font-size: 14px;
+}
+
+/* کنترل‌های دسته‌ای */
+.pwc-batch-controls {
+    display: flex;
+    gap: 10px;
+    margin: 20px 0;
+    flex-wrap: wrap;
+}
+
+.pwc-batch-controls .button {
+    padding: 12px 24px;
+    border-radius: 6px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.pwc-batch-controls .button-primary {
+    background: linear-gradient(135deg, #0073aa, #00a0d2);
+    border: none;
+}
+
+.pwc-batch-controls .button-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,115,170,0.3);
+}
+
+/* لاگ عملیات */
+.pwc-batch-log {
+    max-height: 400px;
+    overflow-y: auto;
+    background: #1e1e1e;
+    color: #00ff00;
+    padding: 20px;
+    border-radius: 8px;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 20px 0;
+}
+
+.pwc-log-entry {
+    padding: 8px 0;
+    border-bottom: 1px solid #333;
+}
+
+.pwc-log-entry:last-child {
+    border-bottom: none;
+}
+
+.pwc-log-success { color: #4CAF50; }
+.pwc-log-error { color: #f44336; }
+.pwc-log-warning { color: #ff9800; }
+.pwc-log-info { color: #2196F3; }
+
+/* کارت‌ها */
+.pwc-card {
+    background: #fff;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+.pwc-card h3 {
+    margin-top: 0;
+    color: #333;
+    border-bottom: 2px solid #0073aa;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+/* منطقه خطر */
+.pwc-danger-zone {
+    background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+    color: white;
+    padding: 30px;
+    border-radius: 12px;
+    text-align: center;
+    margin: 30px 0;
+}
+
+.pwc-danger-zone h3 {
+    color: white;
+    border-bottom-color: rgba(255,255,255,0.3);
+}
+
+.pwc-danger-zone .button {
+    margin: 5px;
+}
+
+/* گرید */
+.pwc-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin: 20px 0;
+}
+
+.pwc-col-6 { grid-column: span 1; }
+.pwc-col-12 { grid-column: span 2; }
+
+/* رسپانسیو */
+@media (max-width: 768px) {
+    .pwc-stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .pwc-tab-nav {
+        flex-direction: column;
+    }
+    
+    .pwc-tab-button {
+        text-align: right;
+        border-bottom: 1px solid #e0e0e0;
+        border-left: 3px solid transparent;
+    }
+    
+    .pwc-tab-button.active {
+        border-left-color: #0073aa;
+        border-bottom-color: #e0e0e0;
+    }
+    
+    .pwc-batch-controls {
+        flex-direction: column;
+    }
+    
+    .pwc-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .pwc-col-6, .pwc-col-12 {
+        grid-column: span 1;
+    }
+}
+
+/* انیمیشن‌ها */
+.pwc-pulse {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+.pwc-spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
