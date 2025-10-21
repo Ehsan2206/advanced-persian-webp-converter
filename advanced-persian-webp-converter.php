@@ -1,217 +1,227 @@
 <?php
 /**
- * Plugin Name: Advanced Persian WebP Converter
+ * Plugin Name: مبدل پیشرفته وبپی فارسی
  * Plugin URI: https://github.com/Ehsan2206/advanced-persian-webp-converter
- * Description: Convert images to WebP format with Persian language support
- * Version: 1.5.0
- * Author: Ehsan
+ * Description: تبدیل هوشمند تصاویر به فرمت WebP با پشتیبانی کامل از زبان فارسی و بهینه‌سازی حافظه
+ * Version: 2.0.0
+ * Author: احسان
+ * Text Domain: apwc
  * License: GPL v2 or later
- * License URI: https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain: advanced-persian-webp-converter
  */
 
-// Prevent direct access
+// جلوگیری از دسترسی مستقیم
 if (!defined('ABSPATH')) {
     exit;
 }
 
-// Define constants for memory optimization
+// تعریف ثابت‌ها
+define('APWC_VERSION', '2.0.0');
+define('APWC_PLUGIN_URL', plugin_dir_url(__FILE__));
+define('APWC_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('APWC_BATCH_SIZE', 3);
-define('APWC_MAX_FILE_SIZE', 5242880); // 5MB
-define('APWC_MEMORY_LIMIT', '256M');
+define('APWC_MAX_FILE_SIZE', 5242880);
 
-class Advanced_Persian_WebP_Converter {
+class AdvancedPersianWebPConverter {
     
-    private $batch_size;
+    private $allowed_mime_types = array('image/jpeg', 'image/png');
     
     public function __construct() {
-        $this->batch_size = APWC_BATCH_SIZE;
-        
+        add_action('init', array($this, 'init'));
         add_action('admin_menu', array($this, 'add_admin_menu'));
-        add_action('admin_init', array($this, 'admin_init'));
+        add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
         add_action('wp_ajax_apwc_convert_batch', array($this, 'ajax_convert_batch'));
+        add_action('wp_ajax_apwc_get_stats', array($this, 'ajax_get_stats'));
+        add_action('wp_ajax_apwc_delete_webp', array($this, 'ajax_delete_webp'));
         add_action('add_attachment', array($this, 'convert_on_upload'));
+        add_action('admin_init', array($this, 'register_settings'));
         
-        // Increase memory limit for this plugin only
-        add_action('init', array($this, 'increase_memory_limit'));
+        // افزایش حافظه برای صفحات پلاگین
+        add_action('admin_init', array($this, 'increase_memory_limit'));
+    }
+    
+    public function init() {
+        load_plugin_textdomain('apwc', false, dirname(plugin_basename(__FILE__)) . '/languages');
     }
     
     public function increase_memory_limit() {
-        if (is_admin() && isset($_GET['page']) && $_GET['page'] === 'advanced-persian-webp-converter') {
-            @ini_set('memory_limit', APWC_MEMORY_LIMIT);
+        if (isset($_GET['page']) && $_GET['page'] === 'webp-converter') {
+            @ini_set('memory_limit', '512M');
             @ini_set('max_execution_time', 300);
         }
     }
     
+    public function register_settings() {
+        register_setting('apwc_settings', 'apwc_quality');
+        register_setting('apwc_settings', 'apwc_auto_convert');
+        register_setting('apwc_settings', 'apwc_preserve_original');
+        register_setting('apwc_settings', 'apwc_convert_sizes');
+    }
+    
     public function add_admin_menu() {
-        add_options_page(
-            'Advanced Persian WebP Converter',
-            'WebP Converter',
+        add_media_page(
+            __('مبدل WebP', 'apwc'),
+            __('مبدل WebP', 'apwc'),
             'manage_options',
-            'advanced-persian-webp-converter',
+            'webp-converter',
             array($this, 'admin_page')
         );
     }
     
-    public function admin_init() {
-        register_setting('apwc_settings', 'apwc_quality');
-        register_setting('apwc_settings', 'apwc_auto_convert');
+    public function enqueue_admin_scripts($hook) {
+        if ($hook !== 'media_page_webp-converter') {
+            return;
+        }
+        
+        wp_enqueue_script('apwc-admin', APWC_PLUGIN_URL . 'assets/admin.js', array('jquery'), APWC_VERSION, true);
+        wp_enqueue_style('apwc-admin', APWC_PLUGIN_URL . 'assets/admin.css', array(), APWC_VERSION);
+        
+        wp_localize_script('apwc-admin', 'apwc_ajax', array(
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('apwc_nonce'),
+            'i18n' => array(
+                'processing' => __('در حال پردازش...', 'apwc'),
+                'complete' => __('تکمیل شد!', 'apwc'),
+                'error' => __('خطا', 'apwc'),
+                'converted' => __('تبدیل شده', 'apwc'),
+                'remaining' => __('باقی‌مانده', 'apwc')
+            )
+        ));
     }
     
     public function admin_page() {
+        $stats = $this->get_conversion_stats();
         ?>
-        <div class="wrap">
-            <h1>Advanced Persian WebP Converter</h1>
+        <div class="wrap apwc-wrap">
+            <h1 class="apwc-title">🎨 مبدل پیشرفته WebP فارسی</h1>
             
-            <div style="background: #fff; padding: 20px; margin: 20px 0; border: 1px solid #ccd0d4;">
-                <h2>Conversion Statistics</h2>
-                <div id="apwc-stats">
-                    <p>Loading statistics...</p>
-                </div>
-                <button id="apwc-refresh-stats" class="button button-secondary">Refresh Stats</button>
-            </div>
-            
-            <div style="background: #fff; padding: 20px; margin: 20px 0; border: 1px solid #ccd0d4;">
-                <h2>Convert Images</h2>
-                <p>Convert your existing images to WebP format in small batches to prevent memory issues.</p>
-                
-                <div id="apwc-progress" style="display: none;">
-                    <div style="background: #f0f0f0; border-radius: 10px; height: 20px; margin: 10px 0; overflow: hidden;">
-                        <div id="apwc-progress-bar" style="background: #0073aa; height: 100%; width: 0%; transition: width 0.3s ease; border-radius: 10px;"></div>
+            <!-- کارت آمار -->
+            <div class="apwc-card">
+                <h2 class="apwc-card-title">📊 آمار تبدیل</h2>
+                <div class="apwc-stats-grid">
+                    <div class="apwc-stat-item">
+                        <span class="apwc-stat-number"><?php echo $stats['total_images']; ?></span>
+                        <span class="apwc-stat-label">کل تصاویر</span>
                     </div>
-                    <p id="apwc-progress-text" style="font-size: 12px; color: #666;"></p>
+                    <div class="apwc-stat-item">
+                        <span class="apwc-stat-number"><?php echo $stats['converted_images']; ?></span>
+                        <span class="apwc-stat-label">تبدیل شده</span>
+                    </div>
+                    <div class="apwc-stat-item">
+                        <span class="apwc-stat-number"><?php echo $stats['remaining_images']; ?></span>
+                        <span class="apwc-stat-label">باقی‌مانده</span>
+                    </div>
+                    <div class="apwc-stat-item">
+                        <span class="apwc-stat-number"><?php echo $stats['webp_size']; ?></span>
+                        <span class="apwc-stat-label">صرفه‌جویی فضای</span>
+                    </div>
+                </div>
+                <button id="apwc-refresh-stats" class="apwc-btn apwc-btn-secondary">🔄 بروزرسانی آمار</button>
+            </div>
+
+            <!-- کارت تبدیل -->
+            <div class="apwc-card">
+                <h2 class="apwc-card-title">⚡ تبدیل تصاویر</h2>
+                <p class="apwc-description">تصاویر موجود را به فرمت WebP تبدیل کنید. این فرآیند به صورت دسته‌ای انجام می‌شود تا از مصرف حافظه جلوگیری شود.</p>
+                
+                <div id="apwc-progress" class="apwc-progress-container" style="display: none;">
+                    <div class="apwc-progress-bar">
+                        <div class="apwc-progress-fill" id="apwc-progress-fill"></div>
+                    </div>
+                    <div class="apwc-progress-info">
+                        <span id="apwc-progress-text">در حال پردازش...</span>
+                        <span id="apwc-memory-usage" class="apwc-memory-info"></span>
+                    </div>
                 </div>
                 
-                <button id="apwc-start-conversion" class="button button-primary">Start Batch Conversion</button>
-                <div id="apwc-results" style="margin-top: 15px;"></div>
+                <div class="apwc-actions">
+                    <button id="apwc-start-conversion" class="apwc-btn apwc-btn-primary">
+                        🚀 شروع تبدیل دسته‌ای
+                    </button>
+                    <button id="apwc-stop-conversion" class="apwc-btn apwc-btn-danger" style="display: none;">
+                        ⏹ توقف تبدیل
+                    </button>
+                    <button id="apwc-delete-webp" class="apwc-btn apwc-btn-warning">
+                        🗑 حذف فایل‌های WebP
+                    </button>
+                </div>
+                
+                <div id="apwc-results" class="apwc-results"></div>
             </div>
-            
-            <div style="background: #fff; padding: 20px; margin: 20px 0; border: 1px solid #ccd0d4;">
-                <h2>Settings</h2>
+
+            <!-- کارت تنظیمات -->
+            <div class="apwc-card">
+                <h2 class="apwc-card-title">⚙️ تنظیمات</h2>
                 <form method="post" action="options.php">
                     <?php settings_fields('apwc_settings'); ?>
                     <table class="form-table">
                         <tr>
-                            <th scope="row">Image Quality</th>
+                            <th scope="row">کیفیت تصویر</th>
                             <td>
-                                <select name="apwc_quality">
+                                <select name="apwc_quality" class="apwc-select">
                                     <?php for ($i = 60; $i <= 90; $i += 10): ?>
                                         <option value="<?php echo $i; ?>" <?php selected($i, get_option('apwc_quality', 80)); ?>>
                                             <?php echo $i; ?>%
                                         </option>
                                     <?php endfor; ?>
                                 </select>
+                                <p class="description">کیفیت تصاویر WebP (توصیه شده: 80%)</p>
                             </td>
                         </tr>
                         <tr>
-                            <th scope="row">Auto-convert new uploads</th>
+                            <th scope="row">تبدیل خودکار</th>
                             <td>
-                                <input type="checkbox" name="apwc_auto_convert" value="1" <?php checked(1, get_option('apwc_auto_convert', 1)); ?> />
+                                <label class="apwc-switch">
+                                    <input type="checkbox" name="apwc_auto_convert" value="1" <?php checked(1, get_option('apwc_auto_convert', 1)); ?> />
+                                    <span class="apwc-slider"></span>
+                                </label>
+                                <span class="apwc-switch-label">تبدیل خودکار تصاویر جدید پس از آپلود</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">حفظ تصاویر اصلی</th>
+                            <td>
+                                <label class="apwc-switch">
+                                    <input type="checkbox" name="apwc_preserve_original" value="1" <?php checked(1, get_option('apwc_preserve_original', 1)); ?> />
+                                    <span class="apwc-slider"></span>
+                                </label>
+                                <span class="apwc-switch-label">حفظ تصاویر اصلی در کنار فایل‌های WebP</span>
                             </td>
                         </tr>
                     </table>
-                    <?php submit_button(); ?>
+                    <?php submit_button('💾 ذخیره تنظیمات', 'primary', 'submit', false); ?>
                 </form>
             </div>
+
+            <!-- کارت اطلاعات -->
+            <div class="apwc-card">
+                <h2 class="apwc-card-title">ℹ️ اطلاعات فنی</h2>
+                <div class="apwc-info-grid">
+                    <div class="apwc-info-item">
+                        <strong>مصرف حافظه فعلی:</strong>
+                        <span><?php echo $this->format_bytes(memory_get_usage(true)); ?></span>
+                    </div>
+                    <div class="apwc-info-item">
+                        <strong>حداکثر مصرف حافظه:</strong>
+                        <span><?php echo $this->format_bytes(memory_get_peak_usage(true)); ?></span>
+                    </div>
+                    <div class="apwc-info-item">
+                        <strong>پشتیبانی از WebP:</strong>
+                        <span><?php echo function_exists('imagewebp') ? '✅ فعال' : '❌ غیرفعال'; ?></span>
+                    </div>
+                    <div class="apwc-info-item">
+                        <strong>ورژن پلاگین:</strong>
+                        <span><?php echo APWC_VERSION; ?></span>
+                    </div>
+                </div>
+            </div>
         </div>
-        
-        <script>
-        jQuery(document).ready(function($) {
-            let isConverting = false;
-            let currentBatch = 0;
-            let totalConverted = 0;
-            
-            // Load initial stats
-            loadStats();
-            
-            $('#apwc-refresh-stats').on('click', loadStats);
-            
-            $('#apwc-start-conversion').on('click', function() {
-                if (isConverting) return;
-                startConversion();
-            });
-            
-            function loadStats() {
-                $.post(ajaxurl, {
-                    action: 'apwc_get_stats'
-                }, function(response) {
-                    if (response.success) {
-                        $('#apwc-stats').html(
-                            '<p>Total Images: ' + response.data.total + '</p>' +
-                            '<p>Converted: ' + response.data.converted + '</p>' +
-                            '<p>Remaining: ' + response.data.remaining + '</p>'
-                        );
-                    }
-                });
-            }
-            
-            function startConversion() {
-                isConverting = true;
-                currentBatch = 0;
-                totalConverted = 0;
-                
-                $('#apwc-progress').show();
-                $('#apwc-start-conversion').prop('disabled', true).text('Processing...');
-                $('#apwc-results').html('');
-                
-                processBatch();
-            }
-            
-            function processBatch() {
-                $.post(ajaxurl, {
-                    action: 'apwc_convert_batch',
-                    batch: currentBatch,
-                    converted_count: totalConverted
-                }, function(response) {
-                    if (response.success) {
-                        currentBatch = response.data.batch;
-                        totalConverted = response.data.converted_count;
-                        
-                        // Update progress
-                        const progressPercent = Math.min(100, (currentBatch * 10));
-                        $('#apwc-progress-bar').css('width', progressPercent + '%');
-                        $('#apwc-progress-text').text(
-                            'Batch ' + currentBatch + ' | Converted: ' + totalConverted + 
-                            ' | Memory: ' + response.data.memory_usage
-                        );
-                        
-                        if (response.data.has_more) {
-                            setTimeout(processBatch, 1000);
-                        } else {
-                            finishConversion(response.data);
-                        }
-                    } else {
-                        showError(response.data);
-                    }
-                }).fail(function(xhr, status, error) {
-                    showError('AJAX Error: ' + error);
-                });
-            }
-            
-            function finishConversion(data) {
-                isConverting = false;
-                $('#apwc-start-conversion').prop('disabled', false).text('Start Batch Conversion');
-                $('#apwc-results').html(
-                    '<div style="background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 10px; border-radius: 4px;">' +
-                    '<p>Conversion complete! Converted ' + totalConverted + ' images.</p>' +
-                    '<p>Final Memory Usage: ' + data.memory_usage + '</p>' +
-                    '</div>'
-                );
-                loadStats();
-            }
-            
-            function showError(message) {
-                isConverting = false;
-                $('#apwc-start-conversion').prop('disabled', false).text('Start Batch Conversion');
-                $('#apwc-results').html(
-                    '<div style="background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 10px; border-radius: 4px;">' +
-                    '<p>Error: ' + message + '</p>' +
-                    '</div>'
-                );
-            }
-        });
-        </script>
         <?php
+    }
+    
+    public function ajax_get_stats() {
+        $this->check_nonce();
+        $stats = $this->get_conversion_stats();
+        wp_send_json_success($stats);
     }
     
     public function ajax_convert_batch() {
@@ -220,7 +230,7 @@ class Advanced_Persian_WebP_Converter {
         $batch = isset($_POST['batch']) ? intval($_POST['batch']) : 0;
         $converted_count = isset($_POST['converted_count']) ? intval($_POST['converted_count']) : 0;
         
-        // Free memory from previous operations
+        // آزادسازی حافظه
         $this->free_memory();
         
         $result = $this->process_batch($batch);
@@ -228,34 +238,56 @@ class Advanced_Persian_WebP_Converter {
         wp_send_json_success(array(
             'batch' => $batch + 1,
             'converted_count' => $converted_count + $result['converted'],
+            'total_processed' => ($batch * APWC_BATCH_SIZE) + $result['processed'],
             'has_more' => $result['has_more'],
-            'memory_usage' => $this->format_bytes(memory_get_usage(true))
+            'memory_usage' => $this->format_bytes(memory_get_usage(true)),
+            'memory_peak' => $this->format_bytes(memory_get_peak_usage(true))
+        ));
+    }
+    
+    public function ajax_delete_webp() {
+        $this->check_nonce();
+        
+        $deleted = $this->delete_webp_files();
+        
+        wp_send_json_success(array(
+            'deleted_count' => $deleted,
+            'message' => sprintf(__('%d فایل WebP حذف شد.', 'apwc'), $deleted)
         ));
     }
     
     private function process_batch($batch) {
-        $offset = $batch * $this->batch_size;
-        $images = $this->get_images_batch($this->batch_size, $offset);
+        $offset = $batch * APWC_BATCH_SIZE;
+        $images = $this->get_images_batch(APWC_BATCH_SIZE, $offset);
         $converted = 0;
+        $processed = 0;
         
         if (empty($images)) {
-            return array('converted' => 0, 'has_more' => false);
+            return array('converted' => 0, 'processed' => 0, 'has_more' => false);
         }
         
         foreach ($images as $image_id) {
-            if ($this->convert_single_image($image_id)) {
-                $converted++;
+            $processed++;
+            
+            if (get_post_meta($image_id, '_webp_converted', true)) {
+                continue;
             }
             
-            // Free memory after each image
-            if (function_exists('gc_collect_cycles')) {
-                gc_collect_cycles();
+            if ($this->convert_image($image_id)) {
+                $converted++;
+                update_post_meta($image_id, '_webp_converted', true);
+            }
+            
+            // آزادسازی حافظه بعد از هر تصویر
+            if ($processed % 2 === 0) {
+                $this->free_memory();
             }
         }
         
         return array(
             'converted' => $converted,
-            'has_more' => count($images) === $this->batch_size
+            'processed' => $processed,
+            'has_more' => count($images) === APWC_BATCH_SIZE
         );
     }
     
@@ -273,21 +305,32 @@ class Advanced_Persian_WebP_Converter {
         return $wpdb->get_col($query);
     }
     
-    private function convert_single_image($attachment_id) {
+    public function convert_on_upload($attachment_id) {
+        if (!get_option('apwc_auto_convert', 1)) {
+            return;
+        }
+        
+        $this->convert_image($attachment_id);
+    }
+    
+    private function convert_image($attachment_id) {
         $file_path = get_attached_file($attachment_id);
         
         if (!$file_path || !file_exists($file_path)) {
             return false;
         }
         
-        // Check file size
         $file_size = filesize($file_path);
         if ($file_size > APWC_MAX_FILE_SIZE) {
-            error_log('APWC: Image too large - ' . $file_path);
+            error_log('APWC: تصویر بسیار حجیم - ' . $file_path);
             return false;
         }
         
         $mime_type = get_post_mime_type($attachment_id);
+        if (!in_array($mime_type, $this->allowed_mime_types)) {
+            return false;
+        }
+        
         $quality = get_option('apwc_quality', 80);
         $webp_path = $file_path . '.webp';
         
@@ -322,36 +365,75 @@ class Advanced_Persian_WebP_Converter {
             return $result && file_exists($webp_path);
             
         } catch (Exception $e) {
-            error_log('APWC Conversion Error: ' . $e->getMessage());
+            error_log('APWC خطای تبدیل: ' . $e->getMessage());
             return false;
         }
     }
     
-    public function convert_on_upload($attachment_id) {
-        if (!get_option('apwc_auto_convert', 1)) {
-            return;
+    private function delete_webp_files() {
+        global $wpdb;
+        
+        $images = $wpdb->get_col("
+            SELECT meta_value FROM {$wpdb->postmeta} 
+            WHERE meta_key = '_webp_converted'
+        ");
+        
+        $deleted = 0;
+        
+        foreach ($images as $image_id) {
+            $file_path = get_attached_file($image_id);
+            $webp_path = $file_path . '.webp';
+            
+            if (file_exists($webp_path)) {
+                if (unlink($webp_path)) {
+                    $deleted++;
+                    delete_post_meta($image_id, '_webp_converted');
+                }
+            }
         }
         
-        $this->convert_single_image($attachment_id);
+        return $deleted;
+    }
+    
+    private function get_conversion_stats() {
+        global $wpdb;
+        
+        $total_images = $wpdb->get_var("
+            SELECT COUNT(*) FROM {$wpdb->posts} 
+            WHERE post_type = 'attachment' 
+            AND post_mime_type IN ('image/jpeg', 'image/png')
+        ");
+        
+        $converted_images = $wpdb->get_var("
+            SELECT COUNT(*) FROM {$wpdb->postmeta} 
+            WHERE meta_key = '_webp_converted' 
+            AND meta_value = '1'
+        ");
+        
+        // محاسبه صرفه‌جویی فضای تخمینی (فرض: 30% صرفه‌جویی)
+        $savings = $converted_images * 100000; // فرضی
+        
+        return array(
+            'total_images' => (int)$total_images,
+            'converted_images' => (int)$converted_images,
+            'remaining_images' => (int)($total_images - $converted_images),
+            'webp_size' => $this->format_bytes($savings)
+        );
+    }
+    
+    private function check_nonce() {
+        if (!wp_verify_nonce($_POST['nonce'], 'apwc_nonce')) {
+            wp_send_json_error('Nonce نامعتبر');
+        }
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('دسترسی غیرمجاز');
+        }
     }
     
     private function free_memory() {
         if (function_exists('gc_collect_cycles')) {
             gc_collect_cycles();
-        }
-        
-        if (function_exists('wp_cache_flush')) {
-            wp_cache_flush();
-        }
-    }
-    
-    private function check_nonce() {
-        if (!check_ajax_referer('apwc_nonce', 'nonce', false)) {
-            wp_send_json_error('Invalid nonce');
-        }
-        
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error('Insufficient permissions');
         }
     }
     
@@ -363,38 +445,7 @@ class Advanced_Persian_WebP_Converter {
         $bytes /= pow(1024, $pow);
         return round($bytes, $precision) . ' ' . $units[$pow];
     }
-    
-    public static function get_stats() {
-        global $wpdb;
-        
-        $total_images = $wpdb->get_var("
-            SELECT COUNT(*) FROM {$wpdb->posts} 
-            WHERE post_type = 'attachment' 
-            AND post_mime_type IN ('image/jpeg', 'image/png')
-        ");
-        
-        // For now, return basic stats
-        return array(
-            'total' => $total_images,
-            'converted' => 0,
-            'remaining' => $total_images
-        );
-    }
 }
 
-// Initialize the plugin
-new Advanced_Persian_WebP_Converter();
-
-// AJAX handler for stats
-add_action('wp_ajax_apwc_get_stats', function() {
-    $stats = Advanced_Persian_WebP_Converter::get_stats();
-    wp_send_json_success($stats);
-});
-
-// Add nonce creation
-add_action('admin_head', function() {
-    if (isset($_GET['page']) && $_GET['page'] === 'advanced-persian-webp-converter') {
-        wp_nonce_field('apwc_nonce', 'apwc_nonce');
-    }
-});
+new AdvancedPersianWebPConverter();
 ?>
